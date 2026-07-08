@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from numba import njit, prange
 
 ## Parameters
 ev = 27.2114
@@ -22,19 +23,26 @@ tau = 9*2*np.pi/omega
 
 dt_ex = tau/20
 
+@njit(cache=True)
 def A_field_t(t, F0):
-    """
-    Returns the vector potential of the laser field at time t.
-    """
-
-    A0 = F0/omega
-
-    if t < 0:
+    if t < 0.0 or t >= tau:
         return 0.0
-    elif t < tau:
-        return A0 * np.sin(omega * t) * np.sin(np.pi * t / tau)**4
-    else:
-        return 0.0
+    s = np.sin(np.pi * t / tau)
+    return (F0 / omega) * np.sin(omega * t) * s * s * s * s
+
+#def A_field_t(t, F0):
+#    """
+#    Returns the vector potential of the laser field at time t.
+#    """
+#
+#    A0 = F0/omega
+#
+#    if t < 0:
+#        return 0.0
+#    elif t < tau:
+#        return A0 * np.sin(omega * t) * np.sin(np.pi * t / tau)**4
+#    else:
+#        return 0.0
 
     
 def eps_kane_band(k):
@@ -60,24 +68,23 @@ def analyze_non_scattered_trajectory(tex, F0):
     x = 0.0
     t = tex
 
-    k_recomb = []
+
+    max_energy = -1.0
+
     while t < tprop:
         k = k0 + A_field_t(t+dt_traj*0.5, F0)
         v = velocity_kane_band(k)
         x_new = x + v*dt_traj
         if(x_new == 0 or x_new*x <0):
-            k_recomb.append(k)
+            energy = eps_kane_band(k)
+            if energy > max_energy:
+                max_energy = energy
+
         x = x_new
         t += dt_traj
 
-    if len(k_recomb) == 0:
-        return -1.0
-
-    k_recomb_np = np.array(k_recomb)
-    emission_energy = eps_kane_band(k_recomb_np)
-    max_emission_energy = np.max(emission_energy)
     
-    return max_emission_energy
+    return max_energy
 
 def analyze_singly_scattered_trajectory(tex, F0):
     """
@@ -87,7 +94,7 @@ def analyze_singly_scattered_trajectory(tex, F0):
     nskip = 3
     k0 = -A_field_t(tex, F0)
 
-    k_recomb = []
+    max_energy = -1.0
     if_any_scattering = False
 
     for iskip in range(nskip):
@@ -108,25 +115,21 @@ def analyze_singly_scattered_trajectory(tex, F0):
             v = velocity_kane_band(k)
             x_new = x + v*dt_traj
             if(x_new == 0 or x_new*x <0):
-                k_recomb.append(k)
+                energy = eps_kane_band(k)
+                if energy > max_energy:
+                    max_energy = energy
+
             x = x_new
             t += dt_traj
+
 
         if icount > 0:
             if_any_scattering = True
 
-
-    if len(k_recomb) == 0:
-        return -1.0
-
     if not if_any_scattering:
-        return -1.0
+        max_energy = -1.0
 
-    k_recomb_np = np.array(k_recomb)
-    emission_energy = eps_kane_band(k_recomb_np)
-    max_emission_energy = np.max(emission_energy)
-    
-    return max_emission_energy
+    return max_energy
 
 
 
