@@ -8,6 +8,9 @@ a_b = 0.529177
 eps_g = 4.18/ev
 mu_eh = 0.083
 
+boundary_1st_k = np.pi/8.0
+boundary_2nd_k = 2*np.pi/8.0
+
 dt_traj = 1.0
 tprop = 120.0/fs
 
@@ -75,8 +78,86 @@ def analyze_non_scattered_trajectory(tex, F0):
     max_emission_energy = np.max(emission_energy)
     
     return max_emission_energy
+
+def analyze_singly_scattered_trajectory(tex, F0):
+    """
+    Analyzes the singly scattered trajectory of an electron in a laser field.
+    """
+
+    nskip = 3
+    k0 = -A_field_t(tex, F0)
+
+    k_recomb = []
+    if_any_scattering = False
+
+    for iskip in range(nskip):
+        icount = 0
+        k = 0.0
+        x = 0.0
+        t = tex
+
+        kmom_scattering = 0.0
+        
+        while t < tprop:
+            k_new = k0 + A_field_t(t+dt_traj*0.5, F0) + kmom_scattering
+            icount, kmom_scattering = check_scattering_event(
+                k, k_new, iskip, icount, kmom_scattering)
+
+            k = k0 + A_field_t(t+dt_traj*0.5, F0) + kmom_scattering
+
+            v = velocity_kane_band(k)
+            x_new = x + v*dt_traj
+            if(x_new == 0 or x_new*x <0):
+                k_recomb.append(k)
+            x = x_new
+            t += dt_traj
+
+        if icount > 0:
+            if_any_scattering = True
+
+
+    if len(k_recomb) == 0:
+        return -1.0
+
+    if not if_any_scattering:
+        return -1.0
+
+    k_recomb_np = np.array(k_recomb)
+    emission_energy = eps_kane_band(k_recomb_np)
+    max_emission_energy = np.max(emission_energy)
+    
+    return max_emission_energy
+
+
+
+def check_scattering_event(k_old, k_new, iskip, icount, kmom_scattering):
+    
+    if_scattering = 0
+
+    
+    if (k_new == boundary_1st_k or (k_old-boundary_1st_k)*(k_new-boundary_1st_k) < 0):
+        if_scattering = 1
+        kmom_scattering_tmp = -2*boundary_1st_k
+    elif (k_new == boundary_2nd_k or (k_old-boundary_2nd_k)*(k_new-boundary_2nd_k) < 0):
+        if_scattering = 1
+        kmom_scattering_tmp = -2*boundary_2nd_k
+    elif (k_new == -boundary_1st_k or (k_old+boundary_1st_k)*(k_new+boundary_1st_k) < 0):
+        if_scattering = 1
+        kmom_scattering_tmp = 2*boundary_1st_k
+    elif (k_new == -boundary_2nd_k or (k_old+boundary_2nd_k)*(k_new+boundary_2nd_k) < 0):
+        if_scattering = 1
+        kmom_scattering_tmp = 2*boundary_2nd_k
+
+
+    if if_scattering == 1:
+        if  icount == iskip:
+            kmom_scattering += kmom_scattering_tmp
+        
+        icount += 1
+
+    return icount, kmom_scattering
             
-def run_single_scattered_trajectory_analysis(F0):
+def run_non_scattered_trajectory_analysis(F0):
     """
     Runs the analysis of a single scattered trajectory.
     """
@@ -87,6 +168,31 @@ def run_single_scattered_trajectory_analysis(F0):
 
     for tex in time:
         max_emission_energy = analyze_non_scattered_trajectory(tex, F0)
+        if max_emission_energy > 0:
+            max_emission_energy_list.append(max_emission_energy)
+            time_list.append(tex)
+
+
+
+    if len(max_emission_energy_list) == 0:
+        max_emission_energy_among_all_time = -1.0
+    else:
+        max_emission_energy_among_all_time = np.max(max_emission_energy_list)
+
+
+    return max_emission_energy_among_all_time
+
+def run_singly_scattered_trajectory_analysis(F0):
+    """
+    Runs the analysis of a single scattered trajectory.
+    """
+
+    time = np.arange(0, tau, dt_ex)
+    max_emission_energy_list = []
+    time_list = []
+
+    for tex in time:
+        max_emission_energy = analyze_singly_scattered_trajectory(tex, F0)
         if max_emission_energy > 0:
             max_emission_energy_list.append(max_emission_energy)
             time_list.append(tex)
@@ -113,17 +219,30 @@ def field_strength_scan():
     F0_append_list = []
     max_emission_energy_vs_F0 = []
 
+    F0_append_list_sngle_scattering = []
+    max_emission_energy_vs_F0_single_scattering = []
+
     for F0 in F0_list:
-        max_emission_energy_among_all_time = run_single_scattered_trajectory_analysis(F0)
+        max_emission_energy_among_all_time = run_non_scattered_trajectory_analysis(F0)
         if max_emission_energy_among_all_time > 0:
             F0_append_list.append(F0)
             max_emission_energy_vs_F0.append(max_emission_energy_among_all_time)
 
+        max_emission_energy_among_all_time_single_scattering = run_singly_scattered_trajectory_analysis(F0)
+        if max_emission_energy_among_all_time_single_scattering > 0:
+            F0_append_list_sngle_scattering.append(F0)
+            max_emission_energy_vs_F0_single_scattering.append(max_emission_energy_among_all_time_single_scattering)
+
+
     F0_np_list = np.array(F0_append_list)
     max_emission_energy_vs_F0_np = np.array(max_emission_energy_vs_F0)
+    F0_np_list_single_scattering = np.array(F0_append_list_sngle_scattering)
+    max_emission_energy_vs_F0_np_single_scattering = np.array(max_emission_energy_vs_F0_single_scattering)
 
-    plt.plot(F0_np_list, max_emission_energy_vs_F0_np*ev)
-    plt.xlabel('Field Strength (a.u.)')
+
+    plt.plot(F0_np_list*ev/a_b, max_emission_energy_vs_F0_np*ev)
+    plt.plot(F0_np_list_single_scattering*ev/a_b, max_emission_energy_vs_F0_np_single_scattering*ev)
+    plt.xlabel('Field Strength (V/AA)')
     plt.ylabel('Max Emission Energy (eV)')
     plt.title('Max Emission Energy vs Field Strength')
     plt.savefig('fig_max_emission_energy_vs_F0.jpeg')
