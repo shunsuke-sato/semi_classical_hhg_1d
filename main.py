@@ -12,7 +12,7 @@ mu_eh = 0.083
 boundary_1st_k = np.pi/8.0
 boundary_2nd_k = 2*np.pi/8.0
 
-dt_traj = 1.0
+dt_traj = 10.0
 tprop = 120.0/fs
 
 ## Laser field parameters
@@ -21,7 +21,7 @@ omega = 0.387/ev
 
 tau = 9*2*np.pi/omega
 
-dt_ex = tau/20
+dt_ex = tau/10
 
 @njit(cache=True)
 def A_field_t(t, F0):
@@ -131,7 +131,74 @@ def analyze_singly_scattered_trajectory(tex, F0):
 
     return max_energy
 
+def analyze_doubly_scattered_trajectory(tex, F0):
+    """
+    Analyzes the doubly scattered trajectory of an electron in a laser field.
+    """
 
+    nskip_1st = 4
+    nskip_2nd = 4
+
+    k0 = -A_field_t(tex, F0)
+
+    max_energy = -1.0
+    if_any_scattering_1st = False
+    if_any_scattering_2nd = False
+
+    for iskip in range(nskip_1st):
+        for jskip in range(nskip_2nd):
+
+            icount_1st = 0
+            icount_2nd = 0
+
+            k = 0.0
+            x = 0.0
+            t = tex
+
+            kmom_scattering_1st = 0.0
+            kmom_scattering_2nd = 0.0
+        
+            while t < tprop:
+                k_new = k0 + A_field_t(t+dt_traj*0.5, F0) \
+                    + kmom_scattering_1st + kmom_scattering_2nd
+
+                if(if_any_scattering_1st == False):
+
+                    icount_1st, kmom_scattering_1st = check_scattering_event(
+                        k, k_new, iskip, icount_1st, kmom_scattering_1st)
+
+                    if icount_1st > iskip:
+                        if_any_scattering_1st = True
+
+                else:
+
+                    if(if_any_scattering_2nd == False):
+                        icount_2nd, kmom_scattering_2nd = check_scattering_event(
+                            k, k_new, jskip, icount_2nd, kmom_scattering_2nd)
+
+                        if icount_2nd > jskip:
+                            if_any_scattering_2nd = True
+
+
+
+            k = k0 + A_field_t(t+dt_traj*0.5, F0) \
+                + kmom_scattering_1st + kmom_scattering_2nd
+
+            v = velocity_kane_band(k)
+            x_new = x + v*dt_traj
+            if(x_new == 0 or x_new*x <0):
+                energy = eps_kane_band(k)
+                if energy > max_energy:
+                    max_energy = energy
+
+            x = x_new
+            t += dt_traj
+
+
+    if not if_any_scattering_second:
+        max_energy = -1.0
+
+    return max_energy
 
 def check_scattering_event(k_old, k_new, iskip, icount, kmom_scattering):
     
@@ -210,12 +277,37 @@ def run_singly_scattered_trajectory_analysis(F0):
 
     return max_emission_energy_among_all_time
 
+def run_doubly_scattered_trajectory_analysis(F0):
+    """
+    Runs the analysis of a doubly scattered trajectory.
+    """
+
+    time = np.arange(0, tau, dt_ex)
+    max_emission_energy_list = []
+    time_list = []
+
+    for tex in time:
+        max_emission_energy = analyze_doubly_scattered_trajectory(tex, F0)
+        if max_emission_energy > 0:
+            max_emission_energy_list.append(max_emission_energy)
+            time_list.append(tex)
+
+
+
+    if len(max_emission_energy_list) == 0:
+        max_emission_energy_among_all_time = -1.0
+    else:
+        max_emission_energy_among_all_time = np.max(max_emission_energy_list)
+
+
+    return max_emission_energy_among_all_time
+
 def field_strength_scan():
     """
     Scans the field strength and analyzes the scattered trajectories.
     """
 
-    F0_VpAA_list = np.linspace(0.01, 0.3, 30)
+    F0_VpAA_list = np.linspace(0.01, 0.25, 30)
     F0_list = F0_VpAA_list*a_b/ev
 
 
@@ -224,6 +316,9 @@ def field_strength_scan():
 
     F0_append_list_sngle_scattering = []
     max_emission_energy_vs_F0_single_scattering = []
+
+    F0_append_list_double_scattering = []
+    max_emission_energy_vs_F0_double_scattering = []
 
     for F0 in F0_list:
         max_emission_energy_among_all_time = run_non_scattered_trajectory_analysis(F0)
@@ -237,14 +332,22 @@ def field_strength_scan():
             max_emission_energy_vs_F0_single_scattering.append(max_emission_energy_among_all_time_single_scattering)
 
 
+        max_emission_energy_among_all_time_double_scattering = run_doubly_scattered_trajectory_analysis(F0)
+        if max_emission_energy_among_all_time_double_scattering > 0:
+            F0_append_list_double_scattering.append(F0)
+            max_emission_energy_vs_F0_double_scattering.append(max_emission_energy_among_all_time_double_scattering)
+
     F0_np_list = np.array(F0_append_list)
     max_emission_energy_vs_F0_np = np.array(max_emission_energy_vs_F0)
     F0_np_list_single_scattering = np.array(F0_append_list_sngle_scattering)
     max_emission_energy_vs_F0_np_single_scattering = np.array(max_emission_energy_vs_F0_single_scattering)
+    F0_np_list_double_scattering = np.array(F0_append_list_double_scattering)
+    max_emission_energy_vs_F0_np_double_scattering = np.array(max_emission_energy_vs_F0_double_scattering)
 
 
     plt.plot(F0_np_list*ev/a_b, max_emission_energy_vs_F0_np*ev)
     plt.plot(F0_np_list_single_scattering*ev/a_b, max_emission_energy_vs_F0_np_single_scattering*ev)
+    plt.plot(F0_np_list_double_scattering*ev/a_b, max_emission_energy_vs_F0_np_double_scattering*ev)
     plt.xlabel('Field Strength (V/AA)')
     plt.ylabel('Max Emission Energy (eV)')
     plt.title('Max Emission Energy vs Field Strength')
