@@ -21,7 +21,7 @@ omega = 0.387/ev
 
 tau = 9*2*np.pi/omega
 
-dt_ex = tau/10
+dt_ex = tau/200
 
 @njit(cache=True)
 def A_field_t(t, F0):
@@ -104,18 +104,24 @@ def analyze_singly_scattered_trajectory(tex, F0):
         t = tex
 
         kmom_scattering = 0.0
+        if_any_scattering = False
         
         while t < tprop:
             k_new = k0 + A_field_t(t+dt_traj*0.5, F0) + kmom_scattering
-            icount, kmom_scattering = check_scattering_event(
-                k, k_new, iskip, icount, kmom_scattering)
+
+            if (if_any_scattering == False):
+                icount, kmom_scattering = check_scattering_event(
+                    k, k_new, iskip, icount, kmom_scattering)
+                
+                if icount > iskip:
+                    if_any_scattering = True
 
             k = k0 + A_field_t(t+dt_traj*0.5, F0) + kmom_scattering
 
             v = velocity_kane_band(k)
             x_new = x + v*dt_traj
 
-            if((icount > iskip) and (x_new == 0 or x_new*x <0)):
+            if(if_any_scattering and (x_new == 0 or x_new*x <0)):
                 energy = eps_kane_band(k)
                 if energy > max_energy:
                     max_energy = energy
