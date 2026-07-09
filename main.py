@@ -91,7 +91,7 @@ def analyze_singly_scattered_trajectory(tex, F0):
     Analyzes the singly scattered trajectory of an electron in a laser field.
     """
 
-    nskip = 3
+    nskip = 4
     k0 = -A_field_t(tex, F0)
 
     max_energy = -1.0
