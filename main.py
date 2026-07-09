@@ -95,7 +95,7 @@ def analyze_singly_scattered_trajectory(tex, F0):
     k0 = -A_field_t(tex, F0)
 
     max_energy = -1.0
-    if_any_scattering = False
+
 
     for iskip in range(nskip):
         icount = 0
@@ -114,7 +114,8 @@ def analyze_singly_scattered_trajectory(tex, F0):
 
             v = velocity_kane_band(k)
             x_new = x + v*dt_traj
-            if(x_new == 0 or x_new*x <0):
+
+            if((icount > iskip) and (x_new == 0 or x_new*x <0)):
                 energy = eps_kane_band(k)
                 if energy > max_energy:
                     max_energy = energy
@@ -122,12 +123,6 @@ def analyze_singly_scattered_trajectory(tex, F0):
             x = x_new
             t += dt_traj
 
-
-        if icount > 0:
-            if_any_scattering = True
-
-    if not if_any_scattering:
-        max_energy = -1.0
 
     return max_energy
 
@@ -188,7 +183,8 @@ def analyze_doubly_scattered_trajectory(tex, F0):
 
                 v = velocity_kane_band(k)
                 x_new = x + v*dt_traj
-                if(if_any_scattering_2nd and (x_new == 0 or x_new*x <0)):
+                if(if_any_scattering_1st and if_any_scattering_2nd 
+                   and (x_new == 0 or x_new*x <0)):
                     energy = eps_kane_band(k)
                     if energy > max_energy:
                         max_energy = energy
@@ -196,9 +192,6 @@ def analyze_doubly_scattered_trajectory(tex, F0):
                 x = x_new
                 t += dt_traj
 
-
-    if not if_any_scattering_1st or not if_any_scattering_2nd:
-        max_energy = -1.0
 
     return max_energy
 
