@@ -12,7 +12,7 @@ mu_eh = 0.083
 boundary_1st_k = np.pi/8.0
 boundary_2nd_k = 2*np.pi/8.0
 
-dt_traj = 10.0
+dt_traj = 1.0
 tprop = 120.0/fs
 
 ## Laser field parameters
@@ -142,11 +142,13 @@ def analyze_doubly_scattered_trajectory(tex, F0):
     k0 = -A_field_t(tex, F0)
 
     max_energy = -1.0
-    if_any_scattering_1st = False
-    if_any_scattering_2nd = False
+
 
     for iskip in range(nskip_1st):
         for jskip in range(nskip_2nd):
+
+            if_any_scattering_1st = False
+            if_any_scattering_2nd = False
 
             icount_1st = 0
             icount_2nd = 0
@@ -181,21 +183,21 @@ def analyze_doubly_scattered_trajectory(tex, F0):
 
 
 
-            k = k0 + A_field_t(t+dt_traj*0.5, F0) \
-                + kmom_scattering_1st + kmom_scattering_2nd
+                k = k0 + A_field_t(t+dt_traj*0.5, F0) \
+                    + kmom_scattering_1st + kmom_scattering_2nd
 
-            v = velocity_kane_band(k)
-            x_new = x + v*dt_traj
-            if(x_new == 0 or x_new*x <0):
-                energy = eps_kane_band(k)
-                if energy > max_energy:
-                    max_energy = energy
+                v = velocity_kane_band(k)
+                x_new = x + v*dt_traj
+                if(if_any_scattering_2nd and (x_new == 0 or x_new*x <0)):
+                    energy = eps_kane_band(k)
+                    if energy > max_energy:
+                        max_energy = energy
 
-            x = x_new
-            t += dt_traj
+                x = x_new
+                t += dt_traj
 
 
-    if not if_any_scattering_second:
+    if not if_any_scattering_1st or not if_any_scattering_2nd:
         max_energy = -1.0
 
     return max_energy
@@ -307,7 +309,7 @@ def field_strength_scan():
     Scans the field strength and analyzes the scattered trajectories.
     """
 
-    F0_VpAA_list = np.linspace(0.01, 0.25, 30)
+    F0_VpAA_list = np.linspace(0.01, 0.25, 60)
     F0_list = F0_VpAA_list*a_b/ev
 
 
